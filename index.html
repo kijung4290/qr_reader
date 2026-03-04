@@ -752,6 +752,54 @@
             color: #fff;
         }
 
+        /* ===== Camera Toggle ===== */
+        .camera-controls {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-camera-switch {
+            display: none;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 14px;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            background: var(--panel);
+            color: var(--text-weak);
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            font-family: var(--font);
+            transition: all .15s ease;
+            white-space: nowrap;
+        }
+
+        .btn-camera-switch.show {
+            display: inline-flex;
+        }
+
+        .btn-camera-switch:hover {
+            background: var(--panel-hover);
+            color: var(--text-strong);
+            border-color: var(--blue);
+        }
+
+        .btn-camera-switch:active {
+            transform: scale(0.96);
+        }
+
+        .camera-label {
+            font-size: 12px;
+            color: var(--text-weak);
+            padding: 2px 8px;
+            border-radius: 6px;
+            background: rgba(49, 130, 246, 0.12);
+            color: var(--blue);
+            font-weight: 600;
+        }
+
         /* ===== Scrollbar ===== */
         ::-webkit-scrollbar {
             width: 4px;
@@ -816,10 +864,14 @@
                 </div>
 
                 <!-- 하단 안내 -->
-                <div style="padding: 14px 20px; text-align: center; border-top: 1px solid var(--border);">
+                <div
+                    style="padding: 14px 20px; display:flex; align-items:center; justify-content:center; gap:12px; border-top: 1px solid var(--border);">
                     <button id="btnToggleScanBottom" onclick="toggleScanner()"
-                        style="background:none; border:none; color:var(--blue); font-weight:700; font-size:15px; cursor:pointer; font-family:var(--font); display:none;">
-                        ❌ 카메라 끄기
+                        style="background:none; border:none; color:var(--red); font-weight:700; font-size:15px; cursor:pointer; font-family:var(--font); display:none;">
+                        ⏹ 카메라 끄기
+                    </button>
+                    <button id="btnCameraSwitch" class="btn-camera-switch" onclick="switchCamera()">
+                        🔄 카메라 전환 <span class="camera-label" id="cameraLabel">후면</span>
                     </button>
                     <span id="scanHint" style="font-size:13px; color:var(--text-weak);">
                         버튼을 눌러 카메라를 시작하세요
@@ -897,11 +949,40 @@
         let countdownTimer = null;
         let jsonpCounter = 0;
 
+        // ===== Camera State =====
+        let cameraList = [];        // 사용 가능한 카메라 목록
+        let currentCameraIndex = 0; // 현재 선택된 카메라 인덱스
+        let currentFacing = 'environment'; // 현재 카메라 방향
+
         // ===== Init =====
         document.addEventListener('DOMContentLoaded', () => {
             updateScanCount();
             renderHistory();
+            // 카메라 목록 미리 로드
+            loadCameraList();
         });
+
+        // 카메라 목록 로드
+        async function loadCameraList() {
+            try {
+                const devices = await Html5Qrcode.getCameras();
+                if (devices && devices.length > 0) {
+                    cameraList = devices;
+                    console.log('카메라 목록:', devices.map(d => d.label || d.id));
+
+                    // 후면 카메라를 기본으로 찾기
+                    const backIdx = devices.findIndex(d =>
+                        d.label && (d.label.toLowerCase().includes('back') ||
+                            d.label.toLowerCase().includes('rear') ||
+                            d.label.toLowerCase().includes('환경') ||
+                            d.label.toLowerCase().includes('후면'))
+                    );
+                    if (backIdx !== -1) currentCameraIndex = backIdx;
+                }
+            } catch (e) {
+                console.log('카메라 목록 로드 실패 (권한 필요):', e);
+            }
+        }
 
         // ===== Scanner Toggle =====
         function toggleScanner() {
@@ -912,7 +993,7 @@
             }
         }
 
-        function startScanner() {
+        function startScanner(useCameraId) {
             $('idleView').style.display = 'none';
             $('scannerView').style.display = 'block';
             $('btnToggleScanBottom').style.display = 'inline';
@@ -920,36 +1001,130 @@
 
             scanner = new Html5Qrcode('scanner-container');
 
+            // 인식률 개선: 더 넓은 스캔 영역, 높은 fps
             const config = {
-                fps: 10,
-                qrbox: { width: 220, height: 220 },
+                fps: 15,
+                qrbox: function (viewfinderWidth, viewfinderHeight) {
+                    // 화면 크기의 70%를 스캔 영역으로 사용 → 인식률 향상
+                    const size = Math.min(viewfinderWidth, viewfinderHeight) * 0.7;
+                    return { width: Math.floor(size), height: Math.floor(size) };
+                },
                 aspectRatio: 1.0,
+                disableFlip: false,
+                experimentalFeatures: {
+                    useBarCodeDetectorIfSupported: true  // 네이티브 API 활용 시 인식률 향상
+                }
             };
 
+            // 카메라 선택: ID가 지정되면 ID로, 아니면 facingMode로
+            let cameraConfig;
+            if (useCameraId) {
+                cameraConfig = useCameraId;
+            } else if (cameraList.length > 0) {
+                cameraConfig = cameraList[currentCameraIndex].id;
+            } else {
+                cameraConfig = { facingMode: currentFacing };
+            }
+
             scanner.start(
-                { facingMode: 'environment' },
+                cameraConfig,
                 config,
                 onScanSuccess
             ).then(() => {
                 isScanning = true;
+                updateCameraUI();
                 setStatus('스캔 대기 중', true);
+
+                // 카메라 목록이 아직 없으면 다시 로드 (권한 허용 후)
+                if (cameraList.length === 0) {
+                    loadCameraList().then(() => updateCameraUI());
+                }
             }).catch(err => {
                 console.error('Camera start failed:', err);
-                setStatus('카메라 시작 실패', false);
-                // Fallback: 전면 카메라 시도
-                scanner.start(
-                    { facingMode: 'user' },
-                    config,
-                    onScanSuccess
-                ).then(() => {
-                    isScanning = true;
-                    setStatus('스캔 대기 중 (전면)', true);
-                }).catch(err2 => {
-                    setStatus('카메라를 사용할 수 없습니다', false);
-                    alert('카메라 접근이 거부되었습니다.\n브라우저 설정에서 카메라 권한을 허용해주세요.');
-                    stopScannerUI();
-                });
+
+                // facingMode로 재시도
+                if (typeof cameraConfig !== 'string' || cameraList.length === 0) {
+                    // 전면 카메라로 fallback
+                    const fallbackFacing = currentFacing === 'environment' ? 'user' : 'environment';
+                    scanner.start(
+                        { facingMode: fallbackFacing },
+                        config,
+                        onScanSuccess
+                    ).then(() => {
+                        isScanning = true;
+                        currentFacing = fallbackFacing;
+                        updateCameraUI();
+                        setStatus('스캔 대기 중', true);
+                        loadCameraList().then(() => updateCameraUI());
+                    }).catch(err2 => {
+                        setStatus('카메라를 사용할 수 없습니다', false);
+                        alert('카메라 접근이 거부되었습니다.\n브라우저 설정에서 카메라 권한을 허용해주세요.');
+                        stopScannerUI();
+                    });
+                } else {
+                    // 다른 카메라로 재시도
+                    currentCameraIndex = (currentCameraIndex + 1) % cameraList.length;
+                    startScanner(cameraList[currentCameraIndex].id);
+                }
             });
+        }
+
+        // 카메라 전환
+        async function switchCamera() {
+            if (!isScanning || cameraList.length < 2) {
+                // 카메라 목록이 없으면 facingMode 토글
+                currentFacing = currentFacing === 'environment' ? 'user' : 'environment';
+                if (isScanning) {
+                    await scanner.stop();
+                    scanner.clear();
+                    isScanning = false;
+                    startScanner();
+                }
+                return;
+            }
+
+            // 다음 카메라로 순환
+            currentCameraIndex = (currentCameraIndex + 1) % cameraList.length;
+            const nextCamera = cameraList[currentCameraIndex];
+
+            setStatus('카메라 전환 중...', false);
+
+            try {
+                await scanner.stop();
+                scanner.clear();
+                isScanning = false;
+                startScanner(nextCamera.id);
+            } catch (e) {
+                console.error('카메라 전환 실패:', e);
+                startScanner();
+            }
+        }
+
+        // 카메라 UI 업데이트
+        function updateCameraUI() {
+            const switchBtn = $('btnCameraSwitch');
+            const label = $('cameraLabel');
+
+            // 카메라 전환 버튼 표시
+            switchBtn.classList.add('show');
+
+            if (cameraList.length > 0) {
+                const currentCam = cameraList[currentCameraIndex];
+                const camLabel = currentCam.label || `카메라 ${currentCameraIndex + 1}`;
+
+                // 카메라 이름에서 전면/후면 추출
+                if (camLabel.toLowerCase().includes('back') || camLabel.toLowerCase().includes('rear') ||
+                    camLabel.toLowerCase().includes('후면') || camLabel.includes('0')) {
+                    label.textContent = `후면`;
+                } else if (camLabel.toLowerCase().includes('front') || camLabel.toLowerCase().includes('user') ||
+                    camLabel.toLowerCase().includes('전면')) {
+                    label.textContent = `전면`;
+                } else {
+                    label.textContent = `${currentCameraIndex + 1}/${cameraList.length}`;
+                }
+            } else {
+                label.textContent = currentFacing === 'environment' ? '후면' : '전면';
+            }
         }
 
         function stopScanner() {
@@ -969,6 +1144,7 @@
             $('idleView').style.display = '';
             $('scannerView').style.display = 'none';
             $('btnToggleScanBottom').style.display = 'none';
+            $('btnCameraSwitch').classList.remove('show');
             $('scanHint').style.display = '';
             setStatus('대기 중', false);
             hideResult();
