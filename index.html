@@ -1172,26 +1172,32 @@
             setStatus('출석 처리 중...', true);
             $('processing').classList.add('show');
 
-            // 스캐너 일시정지
-            if (scanner) scanner.pause();
-
             // JSONP 호출
             callGasJsonp(targetId);
         }
 
         // ===== JSONP Communication =====
         function callGasJsonp(id) {
-            const callbackName = '__qrCallback_' + (++jsonpCounter);
+            const currentCounter = ++jsonpCounter;
+            const callbackName = '__qrCallback_' + currentCounter;
+            const scriptId = 'jsonp_' + currentCounter;
             const timeoutMs = 15000;
+            let isResolved = false;
+
+            // 통신 완료 후 정리 함수 (성공, 에러, 타임아웃 공통)
+            const cleanup = () => {
+                isResolved = true;
+                delete window[callbackName];
+                const scriptEl = document.getElementById(scriptId);
+                if (scriptEl) scriptEl.remove();
+                $('processing').classList.remove('show');
+            };
 
             // 콜백 함수 등록
             window[callbackName] = function (data) {
-                // 정리
-                delete window[callbackName];
-                const scriptEl = document.getElementById('jsonp_' + jsonpCounter);
-                if (scriptEl) scriptEl.remove();
-
-                $('processing').classList.remove('show');
+                if (isResolved) return;
+                clearTimeout(timeout);
+                cleanup();
 
                 if (data && data.success) {
                     // 성공 응답이지만 메시지에 '이미'가 포함된 경우(중복 출석)
@@ -1210,38 +1216,26 @@
 
             // 타임아웃 처리
             const timeout = setTimeout(() => {
-                if (window[callbackName]) {
-                    delete window[callbackName];
-                    const scriptEl = document.getElementById('jsonp_' + jsonpCounter);
-                    if (scriptEl) scriptEl.remove();
-
-                    $('processing').classList.remove('show');
-                    showResult('error', '서버 응답 시간 초과. 다시 시도해주세요.');
-                    scheduleResume();
-                }
+                if (isResolved) return;
+                cleanup();
+                showResult('error', '서버 응답 시간 초과. 인터넷 연결을 확인해주세요.');
+                scheduleResume();
             }, timeoutMs);
 
             // 스크립트 태그 생성
             const script = document.createElement('script');
-            script.id = 'jsonp_' + jsonpCounter;
+            script.id = scriptId;
             const sep = GAS_URL.includes('?') ? '&' : '?';
             script.src = `${GAS_URL}${sep}id=${encodeURIComponent(id)}&callback=${callbackName}`;
             script.onerror = () => {
+                if (isResolved) return;
                 clearTimeout(timeout);
-                delete window[callbackName];
-                $('processing').classList.remove('show');
+                cleanup();
                 showResult('error', '서버에 연결할 수 없습니다. URL을 확인해주세요.');
                 scheduleResume();
             };
 
             document.head.appendChild(script);
-
-            // 성공 시 타임아웃 클리어를 위해 원래 콜백 래핑
-            const originalCallback = window[callbackName];
-            window[callbackName] = function (data) {
-                clearTimeout(timeout);
-                originalCallback(data);
-            };
         }
 
         // ===== Result Display =====
@@ -1316,8 +1310,7 @@
         function scheduleResume() {
             setTimeout(() => {
                 isProcessing = false;
-                if (scanner && isScanning) {
-                    scanner.resume();
+                if (isScanning) {
                     setStatus('다음 분 QR을 비춰주세요', true);
                 }
                 // 결과 자동 숨김
