@@ -904,8 +904,8 @@
                     <div class="history-title">📋 오늘 스캔 기록</div>
                     <button class="btn-clear" onclick="clearHistory()">전체 삭제</button>
                 </div>
+                <div class="history-empty" id="historyEmpty">아직 스캔 기록이 없습니다</div>
                 <div class="history-list" id="historyList">
-                    <div class="history-empty" id="historyEmpty">아직 스캔 기록이 없습니다</div>
                 </div>
             </div>
         </main>
@@ -1360,7 +1360,6 @@
 
             if (history.length === 0) {
                 list.innerHTML = '';
-                list.appendChild(empty);
                 empty.style.display = 'block';
                 return;
             }
