@@ -204,14 +204,9 @@
 
         #scanner-container {
             width: 100%;
-            aspect-ratio: 1;
-            max-height: 400px;
+            min-height: 300px;
             background: #000;
             position: relative;
-        }
-
-        #scanner-container video {
-            object-fit: cover !important;
         }
 
         /* QR scanner 라이브러리 스타일 재정의 */
@@ -219,10 +214,17 @@
             display: none !important;
         }
 
-        #scanner-container div[style*="border-width"] {
-            border-color: var(--blue) !important;
+        #scanner-container video {
+            width: 100% !important;
+            max-height: 70vh !important;
         }
 
+        /* 전면 카메라 거울 모드 (좌우 반전) */
+        #scanner-container.mirrored video {
+            transform: scaleX(-1) !important;
+        }
+
+        /* 스캔 영역 테두리 오버레이 (CSS로 직접 그림) */
         .scanner-overlay {
             position: absolute;
             inset: 0;
@@ -234,8 +236,9 @@
         }
 
         .scan-frame {
-            width: 220px;
-            height: 220px;
+            width: 75%;
+            aspect-ratio: 1;
+            max-width: 320px;
             position: relative;
         }
 
@@ -243,8 +246,8 @@
         .scan-frame::after {
             content: '';
             position: absolute;
-            width: 30px;
-            height: 30px;
+            width: 40px;
+            height: 40px;
             border-color: var(--blue);
             border-style: solid;
         }
@@ -252,15 +255,15 @@
         .scan-frame::before {
             top: 0;
             left: 0;
-            border-width: 3px 0 0 3px;
-            border-radius: 4px 0 0 0;
+            border-width: 4px 0 0 4px;
+            border-radius: 8px 0 0 0;
         }
 
         .scan-frame::after {
             top: 0;
             right: 0;
-            border-width: 3px 3px 0 0;
-            border-radius: 0 4px 0 0;
+            border-width: 4px 4px 0 0;
+            border-radius: 0 8px 0 0;
         }
 
         .scan-frame-bottom {
@@ -268,14 +271,15 @@
             bottom: 0;
             left: 0;
             right: 0;
+            height: 40px;
         }
 
         .scan-frame-bottom::before,
         .scan-frame-bottom::after {
             content: '';
             position: absolute;
-            width: 30px;
-            height: 30px;
+            width: 40px;
+            height: 40px;
             border-color: var(--blue);
             border-style: solid;
         }
@@ -283,36 +287,37 @@
         .scan-frame-bottom::before {
             bottom: 0;
             left: 0;
-            border-width: 0 0 3px 3px;
-            border-radius: 0 0 0 4px;
+            border-width: 0 0 4px 4px;
+            border-radius: 0 0 0 8px;
         }
 
         .scan-frame-bottom::after {
             bottom: 0;
             right: 0;
-            border-width: 0 3px 3px 0;
-            border-radius: 0 0 4px 0;
+            border-width: 0 4px 4px 0;
+            border-radius: 0 0 8px 0;
         }
 
         .scan-line {
             position: absolute;
-            left: 4px;
-            right: 4px;
-            height: 2px;
+            left: 5%;
+            right: 5%;
+            height: 3px;
             background: linear-gradient(90deg, transparent, var(--blue), transparent);
             animation: scan-move 2.5s ease-in-out infinite;
-            box-shadow: 0 0 8px var(--blue-glow);
+            box-shadow: 0 0 12px var(--blue-glow);
+            top: 50%;
         }
 
         @keyframes scan-move {
 
             0%,
             100% {
-                top: 10px;
+                transform: translateY(-100px);
             }
 
             50% {
-                top: calc(100% - 10px);
+                transform: translateY(100px);
             }
         }
 
@@ -824,7 +829,7 @@
                 <div class="logo">🍚</div>
                 <div class="header-title">경로식당 QR 출석</div>
                 <div class="header-right">
-                    <button class="btn-icon" id="btnSettings" title="설정" aria-label="설정">⚙️</button>
+                    <!-- 하드코딩으로 변경하여 설정 버튼 제거됨 -->
                 </div>
             </div>
         </header>
@@ -910,34 +915,11 @@
         </footer>
     </div>
 
-    <!-- Settings Modal -->
-    <div class="modal-overlay" id="settingsModal">
-        <div class="modal-content">
-            <div class="modal-handle"></div>
-            <div class="modal-title">⚙️ 설정</div>
-            <div class="form-group">
-                <label class="form-label">Google Apps Script 웹앱 URL</label>
-                <input type="text" class="form-input" id="inputGasUrl"
-                    placeholder="https://script.google.com/macros/s/.../exec" />
-                <div class="form-hint">관리자에게 받은 웹앱 URL을 입력하세요. 변경 후 저장하면 반영됩니다.</div>
-            </div>
-            <div class="form-group">
-                <label class="form-label">자동 재스캔 대기 시간 (초)</label>
-                <input type="number" class="form-input" id="inputDelay" min="1" max="10" value="3" />
-                <div class="form-hint">출석 처리 후 다음 스캔까지의 대기 시간</div>
-            </div>
-            <button class="btn-save" onclick="saveSettings()">저장</button>
-            <button class="btn-clear" style="width:100%; margin-top:12px; padding:12px;"
-                onclick="closeSettings()">닫기</button>
-        </div>
-    </div>
-
     <!-- Audio: 성공 비프음을 Web Audio API로 생성 -->
     <script>
-        // ===== Configuration =====
-        const DEFAULT_GAS_URL = 'https://script.google.com/macros/s/AKfycbzehdygDaRMEMwETphkTuC_aH4J0kycG0Xcna_HNg3rNqt4OzEQ-_oAKqr2V0DagDag1A/exec';
-        let GAS_URL = localStorage.getItem('qr_gas_url') || DEFAULT_GAS_URL;
-        let RESUME_DELAY = parseInt(localStorage.getItem('qr_delay') || '3') * 1000;
+        // ===== Configuration (하드코딩 - 변경 필요 시 아래 문자열 직접 수정) =====
+        const GAS_URL = 'https://script.google.com/macros/s/AKfycbwYK2Cy_p0p3cCjReJkuU4VyChFprmTRaxoLbRBbrT4qzzso34Ys3bkfEqiDzw1FovCsg/exec';
+        const RESUME_DELAY = 3000; // 스캔 대기 시간 3초
 
         // ===== State =====
         const $ = id => document.getElementById(id);
@@ -1001,19 +983,19 @@
 
             scanner = new Html5Qrcode('scanner-container');
 
-            // 인식률 개선: 더 넓은 스캔 영역, 높은 fps
+            // 인식 속도 극대화 설정
             const config = {
-                fps: 15,
-                qrbox: function (viewfinderWidth, viewfinderHeight) {
-                    // 화면 크기의 70%를 스캔 영역으로 사용 → 인식률 향상
-                    const size = Math.min(viewfinderWidth, viewfinderHeight) * 0.7;
-                    return { width: Math.floor(size), height: Math.floor(size) };
-                },
-                aspectRatio: 1.0,
+                fps: 30, // 스캔 주기 단축 (초당 30프레임)
+                formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE], // 바코드 등을 찾지 않고 QR에만 모든 성능 집중
                 disableFlip: false,
                 experimentalFeatures: {
-                    useBarCodeDetectorIfSupported: true  // 네이티브 API 활용 시 인식률 향상
+                    useBarCodeDetectorIfSupported: true
                 }
+            };
+
+            // 스캔 실패 콜백 (필수 — 없으면 라이브러리 내부 에러 발생 가능)
+            const onScanFailure = (errorMessage) => {
+                // 매 프레임 실패를 무시 (QR이 없는 프레임은 정상적으로 실패함)
             };
 
             // 카메라 선택: ID가 지정되면 ID로, 아니면 facingMode로
@@ -1029,7 +1011,8 @@
             scanner.start(
                 cameraConfig,
                 config,
-                onScanSuccess
+                onScanSuccess,
+                onScanFailure
             ).then(() => {
                 isScanning = true;
                 updateCameraUI();
@@ -1049,7 +1032,8 @@
                     scanner.start(
                         { facingMode: fallbackFacing },
                         config,
-                        onScanSuccess
+                        onScanSuccess,
+                        onScanFailure
                     ).then(() => {
                         isScanning = true;
                         currentFacing = fallbackFacing;
@@ -1107,6 +1091,7 @@
 
             // 카메라 전환 버튼 표시
             switchBtn.classList.add('show');
+            let isFront = false;
 
             if (cameraList.length > 0) {
                 const currentCam = cameraList[currentCameraIndex];
@@ -1117,13 +1102,24 @@
                     camLabel.toLowerCase().includes('후면') || camLabel.includes('0')) {
                     label.textContent = `후면`;
                 } else if (camLabel.toLowerCase().includes('front') || camLabel.toLowerCase().includes('user') ||
-                    camLabel.toLowerCase().includes('전면')) {
+                    camLabel.toLowerCase().includes('webcam') || camLabel.toLowerCase().includes('전면')) {
                     label.textContent = `전면`;
+                    isFront = true;
                 } else {
                     label.textContent = `${currentCameraIndex + 1}/${cameraList.length}`;
+                    // 카메라가 1개뿐이라면 보통 노트북 웹캠(전면)
+                    if (cameraList.length === 1) isFront = true;
                 }
             } else {
                 label.textContent = currentFacing === 'environment' ? '후면' : '전면';
+                if (currentFacing === 'user') isFront = true;
+            }
+
+            // 전면 카메라(웹캠)일 경우 거울 모드 적용
+            if (isFront) {
+                $('scanner-container').classList.add('mirrored');
+            } else {
+                $('scanner-container').classList.remove('mirrored');
             }
         }
 
@@ -1198,9 +1194,12 @@
                 $('processing').classList.remove('show');
 
                 if (data && data.success) {
-                    showResult('success', data.message);
-                } else if (data && data.message && data.message.includes('이미')) {
-                    showResult('duplicate', data.message);
+                    // 성공 응답이지만 메시지에 '이미'가 포함된 경우(중복 출석)
+                    if (data.message && data.message.includes('이미')) {
+                        showResult('duplicate', data.message);
+                    } else {
+                        showResult('success', data.message);
+                    }
                 } else {
                     showResult('error', data ? data.message : '알 수 없는 오류');
                 }
@@ -1407,41 +1406,7 @@
             return div.innerHTML;
         }
 
-        // ===== Settings =====
-        $('btnSettings').addEventListener('click', openSettings);
-
-        function openSettings() {
-            $('inputGasUrl').value = GAS_URL;
-            $('inputDelay').value = RESUME_DELAY / 1000;
-            $('settingsModal').classList.add('show');
-        }
-
-        function closeSettings() {
-            $('settingsModal').classList.remove('show');
-        }
-
-        function saveSettings() {
-            const url = $('inputGasUrl').value.trim();
-            const delay = parseInt($('inputDelay').value) || 3;
-
-            if (!url) {
-                alert('웹앱 URL을 입력해주세요.');
-                return;
-            }
-
-            GAS_URL = url;
-            RESUME_DELAY = delay * 1000;
-            localStorage.setItem('qr_gas_url', url);
-            localStorage.setItem('qr_delay', delay);
-
-            closeSettings();
-            showToast('설정이 저장되었습니다.');
-        }
-
-        // 모달 밖 클릭 시 닫기
-        $('settingsModal').addEventListener('click', (e) => {
-            if (e.target === $('settingsModal')) closeSettings();
-        });
+        // 모달 밖 클릭 시 닫기 (설정 기능 제거됨)
 
         // ===== Audio Feedback =====
         const AudioCtx = window.AudioContext || window.webkitAudioContext;
