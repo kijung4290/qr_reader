@@ -1,0 +1,1320 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+    <title>경로식당 QR 출석</title>
+    <meta name="description" content="경로식당 QR코드 출석 스캐너" />
+    <meta name="theme-color" content="#0b0c0f" />
+    <link rel="stylesheet"
+        href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+    <style>
+        /* ===== Design Tokens ===== */
+        :root {
+            --blue: #3182f6;
+            --blue-deep: #1b64da;
+            --blue-weak: #e8f3ff;
+            --blue-glow: rgba(49, 130, 246, 0.35);
+            --green: #20c997;
+            --green-bg: #e6fcf5;
+            --red: #f03e3e;
+            --red-bg: #fff5f5;
+            --gradient: linear-gradient(135deg, #3182f6 0%, #6366f1 100%);
+
+            --text-strong: #f9fafb;
+            --text: #e5e7eb;
+            --text-weak: #9ca3af;
+            --bg: #0b0c0f;
+            --bg-elevated: #111318;
+            --panel: #17191e;
+            --panel-hover: #1e2028;
+            --border: #252830;
+
+            --radius-lg: 20px;
+            --radius-md: 14px;
+            --radius-sm: 10px;
+            --shadow: 0 8px 32px rgba(0, 0, 0, .55);
+            --font: 'Pretendard Variable', 'Pretendard', -apple-system, 'Noto Sans KR', sans-serif;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        html,
+        body {
+            height: 100%;
+            background: var(--bg);
+            color: var(--text);
+            font-family: var(--font);
+            -webkit-font-smoothing: antialiased;
+            overscroll-behavior: none;
+        }
+
+        .app {
+            min-height: 100dvh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* ===== Header ===== */
+        .header {
+            position: sticky;
+            top: 0;
+            z-index: 20;
+            backdrop-filter: saturate(180%) blur(20px);
+            -webkit-backdrop-filter: saturate(180%) blur(20px);
+            background: rgba(11, 12, 15, .8);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .header-inner {
+            max-width: 480px;
+            margin: 0 auto;
+            padding: 14px 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .logo {
+            width: 32px;
+            height: 32px;
+            border-radius: 10px;
+            background: var(--gradient);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            color: white;
+            box-shadow: 0 2px 12px rgba(49, 130, 246, 0.4);
+        }
+
+        .header-title {
+            font-weight: 800;
+            font-size: 17px;
+            color: var(--text-strong);
+            letter-spacing: -.3px;
+        }
+
+        .header-right {
+            margin-left: auto;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            background: var(--panel);
+            color: var(--text-weak);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            transition: all .15s ease;
+        }
+
+        .btn-icon:hover {
+            background: var(--panel-hover);
+            color: var(--text-strong);
+        }
+
+        /* ===== Main Content ===== */
+        .main {
+            flex: 1;
+            max-width: 480px;
+            margin: 0 auto;
+            width: 100%;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        /* ===== Scanner Section ===== */
+        .scanner-wrap {
+            position: relative;
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+            box-shadow: var(--shadow);
+        }
+
+        .scanner-header {
+            padding: 16px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .scanner-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-weak);
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--text-weak);
+            transition: background .3s ease;
+        }
+
+        .status-dot.active {
+            background: var(--green);
+            box-shadow: 0 0 8px rgba(32, 201, 151, 0.5);
+            animation: pulse-dot 2s ease infinite;
+        }
+
+        @keyframes pulse-dot {
+
+            0%,
+            100% {
+                box-shadow: 0 0 4px rgba(32, 201, 151, 0.3);
+            }
+
+            50% {
+                box-shadow: 0 0 12px rgba(32, 201, 151, 0.6);
+            }
+        }
+
+        .scan-count-badge {
+            padding: 4px 10px;
+            border-radius: 20px;
+            background: rgba(49, 130, 246, 0.15);
+            color: var(--blue);
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        #scanner-container {
+            width: 100%;
+            aspect-ratio: 1;
+            max-height: 400px;
+            background: #000;
+            position: relative;
+        }
+
+        #scanner-container video {
+            object-fit: cover !important;
+        }
+
+        /* QR scanner 라이브러리 스타일 재정의 */
+        #scanner-container img[alt="Info icon"] {
+            display: none !important;
+        }
+
+        #scanner-container div[style*="border-width"] {
+            border-color: var(--blue) !important;
+        }
+
+        .scanner-overlay {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            pointer-events: none;
+            z-index: 5;
+        }
+
+        .scan-frame {
+            width: 220px;
+            height: 220px;
+            position: relative;
+        }
+
+        .scan-frame::before,
+        .scan-frame::after {
+            content: '';
+            position: absolute;
+            width: 30px;
+            height: 30px;
+            border-color: var(--blue);
+            border-style: solid;
+        }
+
+        .scan-frame::before {
+            top: 0;
+            left: 0;
+            border-width: 3px 0 0 3px;
+            border-radius: 4px 0 0 0;
+        }
+
+        .scan-frame::after {
+            top: 0;
+            right: 0;
+            border-width: 3px 3px 0 0;
+            border-radius: 0 4px 0 0;
+        }
+
+        .scan-frame-bottom {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+        }
+
+        .scan-frame-bottom::before,
+        .scan-frame-bottom::after {
+            content: '';
+            position: absolute;
+            width: 30px;
+            height: 30px;
+            border-color: var(--blue);
+            border-style: solid;
+        }
+
+        .scan-frame-bottom::before {
+            bottom: 0;
+            left: 0;
+            border-width: 0 0 3px 3px;
+            border-radius: 0 0 0 4px;
+        }
+
+        .scan-frame-bottom::after {
+            bottom: 0;
+            right: 0;
+            border-width: 0 3px 3px 0;
+            border-radius: 0 0 4px 0;
+        }
+
+        .scan-line {
+            position: absolute;
+            left: 4px;
+            right: 4px;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--blue), transparent);
+            animation: scan-move 2.5s ease-in-out infinite;
+            box-shadow: 0 0 8px var(--blue-glow);
+        }
+
+        @keyframes scan-move {
+
+            0%,
+            100% {
+                top: 10px;
+            }
+
+            50% {
+                top: calc(100% - 10px);
+            }
+        }
+
+        /* ===== Idle State (카메라 꺼짐) ===== */
+        .idle-view {
+            width: 100%;
+            aspect-ratio: 1;
+            max-height: 400px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 20px;
+            background: linear-gradient(180deg, #111318 0%, #0b0c0f 100%);
+        }
+
+        .idle-icon {
+            width: 80px;
+            height: 80px;
+            border-radius: 24px;
+            background: var(--gradient);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 36px;
+            box-shadow: 0 8px 32px rgba(49, 130, 246, 0.3);
+            animation: float 3s ease-in-out infinite;
+        }
+
+        @keyframes float {
+
+            0%,
+            100% {
+                transform: translateY(0);
+            }
+
+            50% {
+                transform: translateY(-8px);
+            }
+        }
+
+        .idle-text {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-weak);
+        }
+
+        .btn-start {
+            padding: 14px 32px;
+            border-radius: var(--radius-md);
+            border: none;
+            background: var(--gradient);
+            color: #fff;
+            font-weight: 700;
+            font-size: 16px;
+            cursor: pointer;
+            box-shadow: 0 4px 16px rgba(49, 130, 246, 0.35);
+            transition: transform .1s ease, box-shadow .2s ease;
+            font-family: var(--font);
+        }
+
+        .btn-start:active {
+            transform: scale(0.96);
+        }
+
+        /* ===== Result Toast ===== */
+        .result-container {
+            overflow: hidden;
+            transition: max-height .4s ease, opacity .3s ease;
+            max-height: 0;
+            opacity: 0;
+        }
+
+        .result-container.show {
+            max-height: 200px;
+            opacity: 1;
+        }
+
+        .result-card {
+            padding: 20px;
+            border-radius: var(--radius-lg);
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            animation: slideUp .3s ease;
+        }
+
+        .result-card.success {
+            background: linear-gradient(135deg, rgba(32, 201, 151, 0.12) 0%, rgba(32, 201, 151, 0.04) 100%);
+            border: 1px solid rgba(32, 201, 151, 0.25);
+        }
+
+        .result-card.error {
+            background: linear-gradient(135deg, rgba(240, 62, 62, 0.12) 0%, rgba(240, 62, 62, 0.04) 100%);
+            border: 1px solid rgba(240, 62, 62, 0.25);
+        }
+
+        .result-card.duplicate {
+            background: linear-gradient(135deg, rgba(255, 193, 7, 0.12) 0%, rgba(255, 193, 7, 0.04) 100%);
+            border: 1px solid rgba(255, 193, 7, 0.25);
+        }
+
+        .result-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            flex-shrink: 0;
+        }
+
+        .result-card.success .result-icon {
+            background: rgba(32, 201, 151, 0.15);
+        }
+
+        .result-card.error .result-icon {
+            background: rgba(240, 62, 62, 0.15);
+        }
+
+        .result-card.duplicate .result-icon {
+            background: rgba(255, 193, 7, 0.15);
+        }
+
+        .result-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .result-name {
+            font-size: 18px;
+            font-weight: 800;
+            color: var(--text-strong);
+            letter-spacing: -.3px;
+        }
+
+        .result-msg {
+            font-size: 14px;
+            color: var(--text-weak);
+            margin-top: 2px;
+        }
+
+        .result-countdown {
+            height: 3px;
+            background: var(--border);
+            border-radius: 2px;
+            margin-top: 8px;
+            overflow: hidden;
+        }
+
+        .result-countdown-bar {
+            height: 100%;
+            border-radius: 2px;
+            transition: width .1s linear;
+        }
+
+        .result-card.success .result-countdown-bar {
+            background: var(--green);
+        }
+
+        .result-card.error .result-countdown-bar {
+            background: var(--red);
+        }
+
+        .result-card.duplicate .result-countdown-bar {
+            background: #ffc107;
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(12px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* ===== History ===== */
+        .history-section {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+        }
+
+        .history-header {
+            padding: 16px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .history-title {
+            font-size: 15px;
+            font-weight: 700;
+            color: var(--text-strong);
+        }
+
+        .btn-clear {
+            background: none;
+            border: none;
+            color: var(--text-weak);
+            font-size: 13px;
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-family: var(--font);
+        }
+
+        .btn-clear:hover {
+            color: var(--red);
+            background: rgba(240, 62, 62, 0.08);
+        }
+
+        .history-list {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .history-empty {
+            padding: 32px 20px;
+            text-align: center;
+            color: var(--text-weak);
+            font-size: 14px;
+        }
+
+        .history-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 14px 20px;
+            border-bottom: 1px solid var(--border);
+            animation: fadeIn .2s ease;
+        }
+
+        .history-item:last-child {
+            border-bottom: none;
+        }
+
+        .history-icon {
+            font-size: 18px;
+            flex-shrink: 0;
+        }
+
+        .history-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .history-name {
+            font-size: 15px;
+            font-weight: 700;
+            color: var(--text-strong);
+        }
+
+        .history-time {
+            font-size: 12px;
+            color: var(--text-weak);
+            margin-top: 1px;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
+        }
+
+        /* ===== Settings Modal ===== */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            z-index: 100;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity .25s ease;
+        }
+
+        .modal-overlay.show {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .modal-content {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 20px 20px 0 0;
+            width: 100%;
+            max-width: 480px;
+            padding: 24px;
+            transform: translateY(100%);
+            transition: transform .3s ease;
+        }
+
+        .modal-overlay.show .modal-content {
+            transform: translateY(0);
+        }
+
+        .modal-handle {
+            width: 40px;
+            height: 4px;
+            border-radius: 2px;
+            background: var(--border);
+            margin: 0 auto 20px;
+        }
+
+        .modal-title {
+            font-size: 18px;
+            font-weight: 800;
+            color: var(--text-strong);
+            margin-bottom: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-weak);
+            margin-bottom: 8px;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 14px 16px;
+            font-size: 14px;
+            border: 1.5px solid var(--border);
+            border-radius: var(--radius-sm);
+            background: var(--bg);
+            color: var(--text-strong);
+            outline: none;
+            font-family: var(--font);
+            transition: border-color .2s ease, box-shadow .2s ease;
+        }
+
+        .form-input:focus {
+            border-color: var(--blue);
+            box-shadow: 0 0 0 4px rgba(49, 130, 246, 0.15);
+        }
+
+        .form-hint {
+            font-size: 12px;
+            color: var(--text-weak);
+            margin-top: 6px;
+        }
+
+        .btn-save {
+            width: 100%;
+            padding: 16px;
+            border-radius: var(--radius-md);
+            border: none;
+            background: var(--gradient);
+            color: #fff;
+            font-weight: 700;
+            font-size: 16px;
+            cursor: pointer;
+            font-family: var(--font);
+            margin-top: 8px;
+            transition: transform .1s ease;
+        }
+
+        .btn-save:active {
+            transform: scale(0.97);
+        }
+
+        /* ===== Footer ===== */
+        .footer {
+            max-width: 480px;
+            margin: 0 auto 28px;
+            padding: 0 20px;
+            text-align: center;
+            font-size: 12px;
+            color: var(--text-weak);
+        }
+
+        .footer a {
+            color: var(--blue);
+            text-decoration: none;
+        }
+
+        /* ===== Processing overlay ===== */
+        .processing {
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            z-index: 10;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity .2s ease;
+        }
+
+        .processing.show {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .processing-spinner {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border: 3px solid rgba(255, 255, 255, 0.15);
+            border-top-color: var(--blue);
+            animation: spin .8s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .processing-text {
+            font-size: 15px;
+            font-weight: 600;
+            color: #fff;
+        }
+
+        /* ===== Scrollbar ===== */
+        ::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 2px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="app">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-inner">
+                <div class="logo">🍚</div>
+                <div class="header-title">경로식당 QR 출석</div>
+                <div class="header-right">
+                    <button class="btn-icon" id="btnSettings" title="설정" aria-label="설정">⚙️</button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main -->
+        <main class="main">
+            <!-- Scanner -->
+            <div class="scanner-wrap">
+                <div class="scanner-header">
+                    <div class="scanner-status">
+                        <div class="status-dot" id="statusDot"></div>
+                        <span id="statusText">대기 중</span>
+                    </div>
+                    <div class="scan-count-badge" id="scanCountBadge">오늘 0건</div>
+                </div>
+
+                <!-- Idle View -->
+                <div class="idle-view" id="idleView">
+                    <div class="idle-icon">📷</div>
+                    <div class="idle-text">카메라를 켜고 QR코드를 스캔하세요</div>
+                    <button class="btn-start" id="btnToggleScan" onclick="toggleScanner()">카메라 시작</button>
+                </div>
+
+                <!-- Scanner View -->
+                <div id="scannerView" style="display:none; position:relative;">
+                    <div id="scanner-container"></div>
+                    <div class="scanner-overlay">
+                        <div class="scan-frame">
+                            <div class="scan-line"></div>
+                            <div class="scan-frame-bottom"></div>
+                        </div>
+                    </div>
+                    <div class="processing" id="processing">
+                        <div class="processing-spinner"></div>
+                        <div class="processing-text">출석 처리 중...</div>
+                    </div>
+                </div>
+
+                <!-- 하단 안내 -->
+                <div style="padding: 14px 20px; text-align: center; border-top: 1px solid var(--border);">
+                    <button id="btnToggleScanBottom" onclick="toggleScanner()"
+                        style="background:none; border:none; color:var(--blue); font-weight:700; font-size:15px; cursor:pointer; font-family:var(--font); display:none;">
+                        ❌ 카메라 끄기
+                    </button>
+                    <span id="scanHint" style="font-size:13px; color:var(--text-weak);">
+                        버튼을 눌러 카메라를 시작하세요
+                    </span>
+                </div>
+            </div>
+
+            <!-- Result -->
+            <div class="result-container" id="resultContainer">
+                <div class="result-card" id="resultCard">
+                    <div class="result-icon" id="resultIcon">✅</div>
+                    <div class="result-info">
+                        <div class="result-name" id="resultName">-</div>
+                        <div class="result-msg" id="resultMsg">-</div>
+                    </div>
+                </div>
+                <div class="result-countdown" id="resultCountdown" style="display:none;">
+                    <div class="result-countdown-bar" id="resultCountdownBar" style="width:100%;"></div>
+                </div>
+            </div>
+
+            <!-- History -->
+            <div class="history-section">
+                <div class="history-header">
+                    <div class="history-title">📋 오늘 스캔 기록</div>
+                    <button class="btn-clear" onclick="clearHistory()">전체 삭제</button>
+                </div>
+                <div class="history-list" id="historyList">
+                    <div class="history-empty" id="historyEmpty">아직 스캔 기록이 없습니다</div>
+                </div>
+            </div>
+        </main>
+
+        <footer class="footer">
+            경로식당 QR 출석 스캐너 · iframe 제약 없는 독립 앱
+        </footer>
+    </div>
+
+    <!-- Settings Modal -->
+    <div class="modal-overlay" id="settingsModal">
+        <div class="modal-content">
+            <div class="modal-handle"></div>
+            <div class="modal-title">⚙️ 설정</div>
+            <div class="form-group">
+                <label class="form-label">Google Apps Script 웹앱 URL</label>
+                <input type="text" class="form-input" id="inputGasUrl"
+                    placeholder="https://script.google.com/macros/s/.../exec" />
+                <div class="form-hint">관리자에게 받은 웹앱 URL을 입력하세요. 변경 후 저장하면 반영됩니다.</div>
+            </div>
+            <div class="form-group">
+                <label class="form-label">자동 재스캔 대기 시간 (초)</label>
+                <input type="number" class="form-input" id="inputDelay" min="1" max="10" value="3" />
+                <div class="form-hint">출석 처리 후 다음 스캔까지의 대기 시간</div>
+            </div>
+            <button class="btn-save" onclick="saveSettings()">저장</button>
+            <button class="btn-clear" style="width:100%; margin-top:12px; padding:12px;"
+                onclick="closeSettings()">닫기</button>
+        </div>
+    </div>
+
+    <!-- Audio: 성공 비프음을 Web Audio API로 생성 -->
+    <script>
+        // ===== Configuration =====
+        const DEFAULT_GAS_URL = 'https://script.google.com/macros/s/AKfycbzehdygDaRMEMwETphkTuC_aH4J0kycG0Xcna_HNg3rNqt4OzEQ-_oAKqr2V0DagDag1A/exec';
+        let GAS_URL = localStorage.getItem('qr_gas_url') || DEFAULT_GAS_URL;
+        let RESUME_DELAY = parseInt(localStorage.getItem('qr_delay') || '3') * 1000;
+
+        // ===== State =====
+        const $ = id => document.getElementById(id);
+        let scanner = null;
+        let isScanning = false;
+        let isProcessing = false;
+        let scanCount = parseInt(sessionStorage.getItem('scanCount') || '0');
+        let history = JSON.parse(sessionStorage.getItem('scanHistory') || '[]');
+        let countdownTimer = null;
+        let jsonpCounter = 0;
+
+        // ===== Init =====
+        document.addEventListener('DOMContentLoaded', () => {
+            updateScanCount();
+            renderHistory();
+        });
+
+        // ===== Scanner Toggle =====
+        function toggleScanner() {
+            if (isScanning) {
+                stopScanner();
+            } else {
+                startScanner();
+            }
+        }
+
+        function startScanner() {
+            $('idleView').style.display = 'none';
+            $('scannerView').style.display = 'block';
+            $('btnToggleScanBottom').style.display = 'inline';
+            $('scanHint').style.display = 'none';
+
+            scanner = new Html5Qrcode('scanner-container');
+
+            const config = {
+                fps: 10,
+                qrbox: { width: 220, height: 220 },
+                aspectRatio: 1.0,
+            };
+
+            scanner.start(
+                { facingMode: 'environment' },
+                config,
+                onScanSuccess
+            ).then(() => {
+                isScanning = true;
+                setStatus('스캔 대기 중', true);
+            }).catch(err => {
+                console.error('Camera start failed:', err);
+                setStatus('카메라 시작 실패', false);
+                // Fallback: 전면 카메라 시도
+                scanner.start(
+                    { facingMode: 'user' },
+                    config,
+                    onScanSuccess
+                ).then(() => {
+                    isScanning = true;
+                    setStatus('스캔 대기 중 (전면)', true);
+                }).catch(err2 => {
+                    setStatus('카메라를 사용할 수 없습니다', false);
+                    alert('카메라 접근이 거부되었습니다.\n브라우저 설정에서 카메라 권한을 허용해주세요.');
+                    stopScannerUI();
+                });
+            });
+        }
+
+        function stopScanner() {
+            if (scanner) {
+                scanner.stop().then(() => {
+                    scanner.clear();
+                    stopScannerUI();
+                }).catch(err => {
+                    console.error('Failed to stop scanner:', err);
+                    stopScannerUI();
+                });
+            }
+        }
+
+        function stopScannerUI() {
+            isScanning = false;
+            $('idleView').style.display = '';
+            $('scannerView').style.display = 'none';
+            $('btnToggleScanBottom').style.display = 'none';
+            $('scanHint').style.display = '';
+            setStatus('대기 중', false);
+            hideResult();
+        }
+
+        // ===== QR Scan Callback =====
+        function onScanSuccess(decodedText) {
+            if (isProcessing) return;
+            isProcessing = true;
+
+            // 진동 피드백
+            if (navigator.vibrate) navigator.vibrate(100);
+            // 소리 피드백
+            playBeep();
+
+            // ID 추출
+            let targetId = decodedText;
+
+            if (decodedText.startsWith('http') && (decodedText.includes('?id=') || decodedText.includes('&id='))) {
+                try {
+                    const url = new URL(decodedText);
+                    const id = url.searchParams.get('id');
+                    if (id) targetId = id;
+                } catch (e) {
+                    console.error('URL parse failed:', e);
+                }
+            }
+
+            setStatus('출석 처리 중...', true);
+            $('processing').classList.add('show');
+
+            // 스캐너 일시정지
+            if (scanner) scanner.pause();
+
+            // JSONP 호출
+            callGasJsonp(targetId);
+        }
+
+        // ===== JSONP Communication =====
+        function callGasJsonp(id) {
+            const callbackName = '__qrCallback_' + (++jsonpCounter);
+            const timeoutMs = 15000;
+
+            // 콜백 함수 등록
+            window[callbackName] = function (data) {
+                // 정리
+                delete window[callbackName];
+                const scriptEl = document.getElementById('jsonp_' + jsonpCounter);
+                if (scriptEl) scriptEl.remove();
+
+                $('processing').classList.remove('show');
+
+                if (data && data.success) {
+                    showResult('success', data.message);
+                } else if (data && data.message && data.message.includes('이미')) {
+                    showResult('duplicate', data.message);
+                } else {
+                    showResult('error', data ? data.message : '알 수 없는 오류');
+                }
+
+                addHistory(id, data);
+                scheduleResume();
+            };
+
+            // 타임아웃 처리
+            const timeout = setTimeout(() => {
+                if (window[callbackName]) {
+                    delete window[callbackName];
+                    const scriptEl = document.getElementById('jsonp_' + jsonpCounter);
+                    if (scriptEl) scriptEl.remove();
+
+                    $('processing').classList.remove('show');
+                    showResult('error', '서버 응답 시간 초과. 다시 시도해주세요.');
+                    scheduleResume();
+                }
+            }, timeoutMs);
+
+            // 스크립트 태그 생성
+            const script = document.createElement('script');
+            script.id = 'jsonp_' + jsonpCounter;
+            const sep = GAS_URL.includes('?') ? '&' : '?';
+            script.src = `${GAS_URL}${sep}id=${encodeURIComponent(id)}&callback=${callbackName}`;
+            script.onerror = () => {
+                clearTimeout(timeout);
+                delete window[callbackName];
+                $('processing').classList.remove('show');
+                showResult('error', '서버에 연결할 수 없습니다. URL을 확인해주세요.');
+                scheduleResume();
+            };
+
+            document.head.appendChild(script);
+
+            // 성공 시 타임아웃 클리어를 위해 원래 콜백 래핑
+            const originalCallback = window[callbackName];
+            window[callbackName] = function (data) {
+                clearTimeout(timeout);
+                originalCallback(data);
+            };
+        }
+
+        // ===== Result Display =====
+        function showResult(type, message) {
+            const container = $('resultContainer');
+            const card = $('resultCard');
+            const icon = $('resultIcon');
+            const name = $('resultName');
+            const msg = $('resultMsg');
+
+            // 메시지에서 이름 추출 (예: "홍길동님의 출석이 완료되었습니다.")
+            let displayName = '';
+            let displayMsg = message || '';
+
+            const nameMatch = message ? message.match(/^(.+?)님/) : null;
+            if (nameMatch) {
+                displayName = nameMatch[1] + '님';
+                displayMsg = message.replace(/^.+?님/, '').replace(/^[은의이가] /, '');
+            }
+
+            card.className = 'result-card ' + type;
+
+            if (type === 'success') {
+                icon.textContent = '✅';
+                name.textContent = displayName || '출석 완료';
+                msg.textContent = displayMsg || '출석이 완료되었습니다.';
+            } else if (type === 'duplicate') {
+                icon.textContent = '⚡';
+                name.textContent = displayName || '이미 출석';
+                msg.textContent = displayMsg || '이미 출석 처리되었습니다.';
+            } else {
+                icon.textContent = '❌';
+                name.textContent = '오류 발생';
+                msg.textContent = displayMsg || '다시 시도해주세요.';
+            }
+
+            container.classList.add('show');
+
+            // 카운트다운 바
+            startCountdown(type);
+        }
+
+        function hideResult() {
+            $('resultContainer').classList.remove('show');
+            if (countdownTimer) {
+                clearInterval(countdownTimer);
+                countdownTimer = null;
+            }
+        }
+
+        function startCountdown(type) {
+            const countdown = $('resultCountdown');
+            const bar = $('resultCountdownBar');
+            countdown.style.display = 'block';
+            bar.style.width = '100%';
+
+            const totalSteps = 50;
+            let step = totalSteps;
+
+            if (countdownTimer) clearInterval(countdownTimer);
+            countdownTimer = setInterval(() => {
+                step--;
+                bar.style.width = (step / totalSteps * 100) + '%';
+                if (step <= 0) {
+                    clearInterval(countdownTimer);
+                    countdownTimer = null;
+                    countdown.style.display = 'none';
+                }
+            }, RESUME_DELAY / totalSteps);
+        }
+
+        function scheduleResume() {
+            setTimeout(() => {
+                isProcessing = false;
+                if (scanner && isScanning) {
+                    scanner.resume();
+                    setStatus('다음 분 QR을 비춰주세요', true);
+                }
+                // 결과 자동 숨김
+                setTimeout(() => hideResult(), 500);
+            }, RESUME_DELAY);
+        }
+
+        // ===== Status =====
+        function setStatus(text, active) {
+            $('statusText').textContent = text;
+            $('statusDot').classList.toggle('active', active);
+        }
+
+        // ===== Scan Counter =====
+        function updateScanCount() {
+            $('scanCountBadge').textContent = `오늘 ${scanCount}건`;
+        }
+
+        function incrementScanCount() {
+            scanCount++;
+            sessionStorage.setItem('scanCount', scanCount);
+            updateScanCount();
+        }
+
+        // ===== History =====
+        function addHistory(id, data) {
+            incrementScanCount();
+
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            const entry = {
+                id: id,
+                message: data ? data.message : '알 수 없음',
+                success: data ? data.success : false,
+                time: timeStr,
+            };
+
+            history.unshift(entry);
+            if (history.length > 50) history.pop();
+            sessionStorage.setItem('scanHistory', JSON.stringify(history));
+            renderHistory();
+        }
+
+        function renderHistory() {
+            const list = $('historyList');
+            const empty = $('historyEmpty');
+
+            if (history.length === 0) {
+                list.innerHTML = '';
+                list.appendChild(empty);
+                empty.style.display = 'block';
+                return;
+            }
+
+            empty.style.display = 'none';
+            list.innerHTML = history.map(h => {
+                const icon = h.success ? '✅' : (h.message && h.message.includes('이미') ? '⚡' : '❌');
+                // 메시지에서 이름 추출
+                const nameMatch = h.message ? h.message.match(/^(.+?)님/) : null;
+                const displayName = nameMatch ? nameMatch[1] : (h.id || '알 수 없음');
+
+                return `
+                    <div class="history-item">
+                        <div class="history-icon">${icon}</div>
+                        <div class="history-info">
+                            <div class="history-name">${escapeHtml(displayName)}</div>
+                            <div class="history-time">${h.time}</div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function clearHistory() {
+            history = [];
+            scanCount = 0;
+            sessionStorage.removeItem('scanHistory');
+            sessionStorage.removeItem('scanCount');
+            updateScanCount();
+            renderHistory();
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // ===== Settings =====
+        $('btnSettings').addEventListener('click', openSettings);
+
+        function openSettings() {
+            $('inputGasUrl').value = GAS_URL;
+            $('inputDelay').value = RESUME_DELAY / 1000;
+            $('settingsModal').classList.add('show');
+        }
+
+        function closeSettings() {
+            $('settingsModal').classList.remove('show');
+        }
+
+        function saveSettings() {
+            const url = $('inputGasUrl').value.trim();
+            const delay = parseInt($('inputDelay').value) || 3;
+
+            if (!url) {
+                alert('웹앱 URL을 입력해주세요.');
+                return;
+            }
+
+            GAS_URL = url;
+            RESUME_DELAY = delay * 1000;
+            localStorage.setItem('qr_gas_url', url);
+            localStorage.setItem('qr_delay', delay);
+
+            closeSettings();
+            showToast('설정이 저장되었습니다.');
+        }
+
+        // 모달 밖 클릭 시 닫기
+        $('settingsModal').addEventListener('click', (e) => {
+            if (e.target === $('settingsModal')) closeSettings();
+        });
+
+        // ===== Audio Feedback =====
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        let audioCtx = null;
+
+        function playBeep() {
+            try {
+                if (!audioCtx) audioCtx = new AudioCtx();
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(880, audioCtx.currentTime);
+                osc.frequency.setValueAtTime(1100, audioCtx.currentTime + 0.08);
+                gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+                osc.start(audioCtx.currentTime);
+                osc.stop(audioCtx.currentTime + 0.2);
+            } catch (e) { /* audio not supported */ }
+        }
+
+        // ===== Toast =====
+        function showToast(msg) {
+            let toast = document.getElementById('toast');
+            if (!toast) {
+                toast = document.createElement('div');
+                toast.id = 'toast';
+                toast.style.cssText = `
+                    position:fixed; left:50%; bottom:28px;
+                    transform:translateX(-50%) translateY(16px);
+                    background:rgba(255,255,255,0.95); color:#111;
+                    border-radius:14px; padding:14px 20px;
+                    box-shadow:0 8px 32px rgba(0,0,0,0.3);
+                    opacity:0; transition:opacity .25s ease, transform .25s ease;
+                    z-index:200; font-size:15px; font-weight:600;
+                    font-family:var(--font);
+                `;
+                document.body.appendChild(toast);
+            }
+            toast.textContent = msg;
+            toast.style.opacity = '1';
+            toast.style.transform = 'translateX(-50%) translateY(0)';
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateX(-50%) translateY(16px)';
+            }, 2000);
+        }
+    </script>
+</body>
+
+</html>
