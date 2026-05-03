@@ -917,8 +917,16 @@
 
     <!-- Audio: 성공 비프음을 Web Audio API로 생성 -->
     <script>
-        // ===== Configuration (하드코딩 - 변경 필요 시 아래 문자열 직접 수정) =====
-        const GAS_URL = 'https://script.google.com/macros/s/AKfycby8y1WhEQCTw8dcb6l2-ACqDyugRvcXrmKFv3JCcHv010HAryT_mdiDO9zJ-2hvtFW_/exec';
+        // ===== Configuration =====
+        // 통합출석체크 메인 앱에서 program, endpoint/webAppUrl을 붙여 열면 그 값을 우선 사용합니다.
+        const DEFAULT_GAS_URL = 'https://script.google.com/macros/s/AKfycby8y1WhEQCTw8dcb6l2-ACqDyugRvcXrmKFv3JCcHv010HAryT_mdiDO9zJ-2hvtFW_/exec';
+        const SCANNER_PARAMS = new URLSearchParams(window.location.search);
+        const PROGRAM_NAME = SCANNER_PARAMS.get('program') || SCANNER_PARAMS.get('programName') || '경로식당';
+        const GAS_URL = SCANNER_PARAMS.get('endpoint')
+            || SCANNER_PARAMS.get('scriptUrl')
+            || SCANNER_PARAMS.get('apiUrl')
+            || SCANNER_PARAMS.get('webAppUrl')
+            || DEFAULT_GAS_URL;
         const RESUME_DELAY = 3000; // 스캔 대기 시간 3초
 
         // ===== State =====
@@ -926,8 +934,9 @@
         let scanner = null;
         let isScanning = false;
         let isProcessing = false;
-        let scanCount = parseInt(sessionStorage.getItem('scanCount') || '0');
-        let history = JSON.parse(sessionStorage.getItem('scanHistory') || '[]');
+        const storagePrefix = `scan:${PROGRAM_NAME}:`;
+        let scanCount = parseInt(sessionStorage.getItem(storagePrefix + 'count') || '0');
+        let history = JSON.parse(sessionStorage.getItem(storagePrefix + 'history') || '[]');
         let countdownTimer = null;
         let jsonpCounter = 0;
 
@@ -938,11 +947,23 @@
 
         // ===== Init =====
         document.addEventListener('DOMContentLoaded', () => {
+            applyProgramUi();
             updateScanCount();
             renderHistory();
             // 카메라 목록 미리 로드
             loadCameraList();
         });
+
+        function applyProgramUi() {
+            const title = `${PROGRAM_NAME} QR 출석`;
+            document.title = title;
+            const headerTitle = document.querySelector('.header-title');
+            if (headerTitle) headerTitle.textContent = title;
+            const description = document.querySelector('meta[name="description"]');
+            if (description) description.setAttribute('content', `${PROGRAM_NAME} QR코드 출석 스캐너`);
+            const footer = document.querySelector('.footer');
+            if (footer) footer.textContent = `${PROGRAM_NAME} QR 출석 스캐너 · iframe 제약 없는 독립 앱`;
+        }
 
         // 카메라 목록 로드
         async function loadCameraList() {
@@ -1156,24 +1177,33 @@
             // 소리 피드백
             playBeep();
 
-            // ID 추출
-            let targetId = decodedText;
-
-            if (decodedText.startsWith('http') && (decodedText.includes('?id=') || decodedText.includes('&id='))) {
-                try {
-                    const url = new URL(decodedText);
-                    const id = url.searchParams.get('id');
-                    if (id) targetId = id;
-                } catch (e) {
-                    console.error('URL parse failed:', e);
-                }
-            }
+            const targetId = extractQrPayload(decodedText);
 
             setStatus('출석 처리 중...', true);
             $('processing').classList.add('show');
 
             // JSONP 호출
             callGasJsonp(targetId);
+        }
+
+        function extractQrPayload(decodedText) {
+            const text = String(decodedText || '').trim();
+            if (!text) return '';
+
+            if (text.startsWith('http')) {
+                try {
+                    const url = new URL(text);
+                    const value = url.searchParams.get('id')
+                        || url.searchParams.get('qr')
+                        || url.searchParams.get('data')
+                        || url.searchParams.get('value');
+                    if (value) return value;
+                } catch (e) {
+                    console.error('URL parse failed:', e);
+                }
+            }
+
+            return text;
         }
 
         // ===== JSONP Communication =====
@@ -1226,7 +1256,7 @@
             const script = document.createElement('script');
             script.id = scriptId;
             const sep = GAS_URL.includes('?') ? '&' : '?';
-            script.src = `${GAS_URL}${sep}id=${encodeURIComponent(id)}&callback=${callbackName}`;
+            script.src = `${GAS_URL}${sep}id=${encodeURIComponent(id)}&program=${encodeURIComponent(PROGRAM_NAME)}&callback=${callbackName}`;
             script.onerror = () => {
                 if (isResolved) return;
                 clearTimeout(timeout);
@@ -1331,7 +1361,7 @@
 
         function incrementScanCount() {
             scanCount++;
-            sessionStorage.setItem('scanCount', scanCount);
+            sessionStorage.setItem(storagePrefix + 'count', scanCount);
             updateScanCount();
         }
 
@@ -1350,7 +1380,7 @@
 
             history.unshift(entry);
             if (history.length > 50) history.pop();
-            sessionStorage.setItem('scanHistory', JSON.stringify(history));
+            sessionStorage.setItem(storagePrefix + 'history', JSON.stringify(history));
             renderHistory();
         }
 
@@ -1386,8 +1416,8 @@
         function clearHistory() {
             history = [];
             scanCount = 0;
-            sessionStorage.removeItem('scanHistory');
-            sessionStorage.removeItem('scanCount');
+            sessionStorage.removeItem(storagePrefix + 'history');
+            sessionStorage.removeItem(storagePrefix + 'count');
             updateScanCount();
             renderHistory();
         }
@@ -1451,5 +1481,3 @@
 </body>
 
 </html>
-
-
